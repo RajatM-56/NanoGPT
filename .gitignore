@@ -1,0 +1,5 @@
+.ngpt/
+__pycache__/
+*.pyc
+.uv/
+.venv/

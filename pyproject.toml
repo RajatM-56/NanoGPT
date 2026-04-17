@@ -1,0 +1,7 @@
+[project]
+name = "nanogpt"
+version = "0.1.0"
+description = "A simple bigram language model"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = []
