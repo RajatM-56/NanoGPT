@@ -38,13 +38,15 @@ class BigramLanguageModel(nn.Module):
         return logits, loss
 
     def generate(self, idx, maxNewTokens):
-        idx_cond = idx[:, -blockSize:]
-        idx = idx.to(next(self.parameters()).device)
-        idx_cond = idx_cond.to(next(self.parameters()).device)
+        device = next(self.parameters()).device
+        idx = idx.to(device)
+
         for _ in range(maxNewTokens):
+            idx_cond = idx[:, -blockSize:]
             logits, loss = self(idx_cond)
             logits = logits[:, -1, :]
             probs = F.softmax(logits, dim=-1)
-            nextIdx = torch.multinomial(probs, 1)
-            idx = torch.cat((idx, nextIdx), dim=-1)
+            nextIdx = torch.multinomial(probs, num_samples=1)
+            idx = torch.cat((idx, nextIdx), dim=1)
+
         return idx
