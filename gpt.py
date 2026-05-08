@@ -1,27 +1,5 @@
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-
-# Bigram Language Model
-class BigramLanguageModel(nn.Module):
-    def __init__(self, charsetSize):
-        super().__init__()
-        self.tokenEmbeddingTable = nn.Embedding(charsetSize, charsetSize)
-
-    def forward(self, idx, targets):
-        logits = self.tokenEmbeddingTable(idx)
-        B, T, C = logits.shape
-        logits = logits.view(B * T, C)
-        targets = targets.view(B * T)
-        loss = F.cross_entropy(logits, targets)
-        return logits, loss
-
-with open("input.txt", 'r', encoding="utf-8") as inputFile:
-    input = inputFile.read()
-
-# Extracting unique characters from the input text
-uniqueCharacters = sorted(list(set(input)))
-charsetSize = len(uniqueCharacters)
+from hyperparameters import *
+from BigramLanguageModel import BigramLanguageModel
 
 # A lookup table to map a string to its corresponding index for encoding
 stringToInteger = {character: integer for integer, character in enumerate(uniqueCharacters)}
@@ -39,10 +17,6 @@ n = int(0.9 * len(inputTensor))
 trainingData = inputTensor[:n]
 validationData = inputTensor[n:]
 
-torch.manual_seed(1337)
-blockSize = 8
-batchSize = 4
-
 def getBatch(split):
     data = trainingData if split == "train" else validationData
     ix = torch.randint(len(data) - blockSize, size=(batchSize,))
@@ -51,8 +25,47 @@ def getBatch(split):
 
     return x, y
 
-xb, yb = getBatch("train")
-m = BigramLanguageModel(charsetSize)
-logits, loss = m(xb, yb)
+@torch.no_grad()
+def estimateLoss():
+    out={}
+    model.eval()
 
-print(logits.shape)
+    for split in ["train", "validation"]:
+        losses = torch.zeros(evalIters)
+        for k in range(evalIters):
+            X, Y = getBatch(split)
+            X = X.to(device)
+            Y = Y.to(device)
+
+            logits, loss = model(X, Y)
+            losses[k] = loss.item()
+        out[split] = losses.mean()
+    model.train()
+    return out
+
+xb, yb = getBatch("train")
+model = BigramLanguageModel()
+model = model.to(device)
+
+optimizer = torch.optim.AdamW(model.parameters(), lr=learningRate)
+
+for iter in range(maxIters):
+
+    # every once in a while evaluate the loss on train and val sets
+    if iter % evalInterval == 0:
+        losses = estimateLoss()
+        print(f"step {iter}: train loss {losses['train']:.4f}, val loss {losses['validation']:.4f}")
+
+    # sample a batch of data
+    xb, yb = getBatch('train')
+    xb, yb = xb.to(device), yb.to(device)
+
+    # evaluate the loss
+    logits, loss = model(xb, yb)
+    optimizer.zero_grad(set_to_none=True)
+    loss.backward()
+    optimizer.step()
+
+# generate from the model
+context = torch.zeros((1, 1), dtype=torch.long, device=device)
+print(decode(model.generate(context, maxNewTokens=500)[0].tolist()))
